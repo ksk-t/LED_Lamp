@@ -19,7 +19,6 @@
 
 ### Later
 1. FRAM
-2. RTC (real time clock)
-3. Light\Light sensor?
-4. Rotary Encoder with push + 2 physical buttons
+2. Light\Light sensor?
+3. Rotary Encoder with push + 2 physical buttons
 
