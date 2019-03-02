@@ -9,16 +9,23 @@
   - Load default profiles if no profiles in FRAM 
 - Sleep timer. Slowly dim lights for set amount of time 
 - Morning light. Slowly brighten lights in the morning 
-- Auto brightness?
+- Auto brightness
 
 ## Hardware Ideas
 ### Immediate
-1. 12V Connector
-2. Switching MOSFETS
-3. All Pin passthrough
-
+1. Switching MOSFETS
+2. All pin passthrough
+3. 3 physical buttons  
+    - Power
+    - Cycle through profiles (left)
+    - Cycle through profiles (right)
 ### Later
 1. FRAM
-2. Light\Light sensor?
+2. Light\Lux sensor?
 3. Rotary Encoder with push + 2 physical buttons
+4. Real Time Clock and Calender (RTCC)  
+    - Requires 32KHz crystal
+### Eagle Guides
+- [Schematic](https://learn.sparkfun.com/tutorials/using-eagle-schematic/all)
+- [Board Layout](https://learn.sparkfun.com/tutorials/using-eagle-board-layout/all)
 
