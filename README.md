@@ -28,4 +28,5 @@
 ### Eagle Guides
 - [Schematic](https://learn.sparkfun.com/tutorials/using-eagle-schematic/all)
 - [Board Layout](https://learn.sparkfun.com/tutorials/using-eagle-board-layout/all)
-
+### uC32 Reference Eagle Project
+[Download Link](https://reference.digilentinc.com/_media/reference/microprocessor/uc32/chipkit_uc32_bysa_a.zip)
