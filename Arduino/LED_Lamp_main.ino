@@ -106,7 +106,7 @@ int set_led_warm(int val)
   }
 }
 
-// Set the brightness of the warm LED
+// Set the brightness of the cool LED
 //
 // @param val - brightness (0 - 255) to set the LED to
 //
