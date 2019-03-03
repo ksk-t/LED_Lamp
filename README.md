@@ -1,6 +1,7 @@
 # LED Lamp
 
-## Software Ideas
+## Software
+### Todo
 - User can set profiles via commands
   - Values between 0-255
   - Save on external FRAM via I2C
@@ -11,7 +12,7 @@
 - Morning light. Slowly brighten lights in the morning 
 - Auto brightness
 
-## Hardware Ideas
+## Hardware
 ### Immediate
 1. Switching MOSFETS
 2. All pin passthrough
