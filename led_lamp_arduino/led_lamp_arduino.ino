@@ -1,182 +1,163 @@
 /*
 * Project: LED Lamp
 * Author: Keisuke Tomizawa
+* Description: This Arduino project is used to control two PWM controlled LEDs.
+*              The main purpose of this project was to practice developing embedded 
+*              software in C. Thus, where possible, C was used in favor of C++. Exceptions 
+*              include functions specific to interactions with Arduino hardware such as
+*              the Serial class and analog read/write functions. 
+*              Additionally, the code is written to reflect the Google C\C++ style 
+*              guide as much as possible.
+* Revisions:
+*   March 6, 2019:
+*     -Initial Build
 */
+typedef struct
+{
+  uint8_t pin;
+  uint8_t last_button_status;
+}Button;
 
-// Serial input
-#define MAX_CMD_SIZE    16
-#define SERIAL_BAUD   9600
-#define CMD_TERM_CHAR '\n'
+typedef struct
+{
+  uint8_t pin;
+  uint8_t brightness;
+}Led;
 
-// Pin configuration
-#define PIN_LED_WARM     5
-#define PIN_LED_COOL     6
-#define PIN_PROFILE      7
-#define ANALOG_WRITE_MAX 255
-#define ANALOG_WRITE_MIN 0
-#define PWM_FREQUENCY    25000
-
-// Status returns
-#define FAILURE          -1
-#define SUCCESS          0
-
-// Transition Effect
-#define STEP_TIME 3  // Time (in ms) between a step of brightness during transitions                                                               
-
-// Structures
 typedef struct 
 {
-  int led_warm_val;
-  int led_cool_val;
-}led_profile;
+  uint8_t active_profile_index;
+  Led *led1;
+  Led *led2;
+}Led_controller;
 
-// Global Varialbes
-int curr_led_warm_val  = 0;
-int curr_led_cool_val  = 0;
-int curr_profile_index = 0;
-int last_button_status = 0;
-
-// Default profiles
-#define NUM_PROFILES 5
-led_profile default_profiles[] = 
-{
-  {255, 0}, // { warm_led_val, cool_led_val }
-  {255, 50},
-  {100, 100},
-  {50 , 255},
-  {0  , 0}
-};
+Led led_warm;
+Led led_cool;
+Button btn_rotate_prof;
+Button btn_power;
+Led_controller controller;
 
 void setup()
-{
-  // Setup Serial
-  Serial.begin(SERIAL_BAUD);
-
-  // Configure pins
-  analogWriteFrequency(PWM_FREQUENCY);
-  pinMode(PIN_LED_WARM, OUTPUT);
-  pinMode(PIN_LED_COOL, OUTPUT);
-  pinMode(PIN_PROFILE, INPUT);
-  // Synchronize LED state with global variable
-  analogWrite(PIN_LED_WARM, curr_led_warm_val);
-  analogWrite(PIN_LED_COOL, curr_led_cool_val);
-  // Load profile
-  set_profile(0);
+{ 
+  const int kPwmFrequency = 25000;
+  analogWriteFrequency(kPwmFrequency);
+  
+  const uint8_t kPinLedWarm = 5;
+  const uint8_t kPinLedCool = 6;
+  const uint8_t kPinBtnRotateProf = 7;
+  const uint8_t kPinBtnPower      = 4;
+  led_init(&led_warm, kPinLedWarm);
+  led_init(&led_cool, kPinLedCool);
+  button_init(&btn_rotate_prof, kPinBtnRotateProf);
+  button_init(&btn_power, kPinBtnPower);
+  led_controller_init(&controller, &led_warm, &led_cool);
 }
 
 void loop() 
 {
-  // Check serial buffer
-  if (Serial.available() > 0)
-  {
-    // Get cmd from serial buffer
-    // One extra byte to hold string termination char
-    char input_array[MAX_CMD_SIZE + 1];
-    size_t arr_size = Serial.readBytesUntil(CMD_TERM_CHAR, input_array, MAX_CMD_SIZE);
-    input_array[arr_size] = 0; // Add terminal char
-
-    if (interprete_cmd(input_array) == FAILURE)
-      Serial.println("Invalid cmd");
-  }
+  static int current_profile_index = 0;
   
-  // Rotate profile if button is pressed
-  int curr_button_status = digitalRead(PIN_PROFILE);
-  // Execute if last button was low, and is now high (rising-edge detection)
-  if (curr_button_status && !last_button_status)
-  {
-    rotate_profile();
-  }
-  last_button_status = curr_button_status;
-}
-// Execute function associated with cmd with given value
-// 
-// @param input_cmd - command to interprete. Should contain only a single command
-//
-// @return true if cmd successfully executed, false otherwise
-int interprete_cmd(char *input_array)
-{   
-    // Split input into cmd and value
-    char* seperator = strchr(input_array, ' ');
-    if (seperator == 0)
-    {
-      return FAILURE;
-    }else
-    {
-       *seperator = 0; // Replace seperator with terminal character. input_array now split into cmd and value
-       char cmd[MAX_CMD_SIZE];
-       size_t len = strlen(input_array);
-       strncpy(cmd, input_array, len + 1);
-       ++seperator; // Point to first character of value
-       len = strlen(seperator);
-       char val[MAX_CMD_SIZE];
-       strncpy(val, seperator, len);
-
-       // Execute command
-       if (strcmp(cmd, "warm") == 0)
-       {
-        // Set warm led brightness
-        int val_int = atoi(val);
-        return set_led(PIN_LED_WARM, &curr_led_warm_val, val_int);
-       }else if(strcmp(cmd, "cool") == 0)
-       {
-        // Set cool led brightness
-        int val_int = atoi(val);
-        return set_led(PIN_LED_COOL ,&curr_led_cool_val, val_int);
-       }else if (strcmp(cmd, "all") == 0)
-       {
-        int val_int = atoi(val);
-        int ret_status;
-        ret_status  = set_led(PIN_LED_COOL ,&curr_led_cool_val, val_int);
-        ret_status |= set_led(PIN_LED_WARM, &curr_led_warm_val, val_int);
-        return ret_status;
-       }
-       {
-        return FAILURE;
-       }
-    }
+  if (button_pressed(&btn_power))
+    led_set_off(&led_warm, &led_cool);
+    
+  if (button_pressed(&btn_rotate_prof))
+    rotate_profile(&controller);
 }
 
-// Set the brightness of the warm LED
-//
-// @param val - brightness (0 - 255) to set the LED to
-//
-// @return SUCCESS if value is in range, FAILURE otherwise
-int set_led(int pin,int *current_val ,int new_val)
+void button_init(Button *new_btn, uint8_t pin)
 {
-  if (new_val < ANALOG_WRITE_MIN || new_val > ANALOG_WRITE_MAX)
-  {
-    return FAILURE;
-  }
+  const uint8_t start_status = 0;
+  new_btn->pin = pin;
+  new_btn->last_button_status = start_status;
+  pinMode(pin, INPUT);
+}
+
+bool button_pressed(Button *btn)
+{
+  uint8_t curr_button_status = digitalRead(btn->pin);
+  bool ret;
+  if (curr_button_status && !btn->last_button_status)
+    ret = true;
   else
+    ret = false;
+  btn->last_button_status = curr_button_status;
+  return ret;
+}
+
+
+void led_init(Led*new_led, uint8_t led_pin)
+{
+  const uint8_t start_brightness = 0;
+  new_led->pin = led_pin;
+  new_led->brightness = start_brightness;
+  pinMode(led_pin, OUTPUT);
+  analogWrite(led_pin, start_brightness);
+}
+
+void led_set(Led *led, uint8_t set_brightness)
+{
+  led->brightness = set_brightness;
+  analogWrite(led->pin, set_brightness);
+}
+
+void led_set(Led *led1, Led *led2, uint8_t led1_set_brightness, uint8_t led2_set_brightness)
+{
+  static const int kStepTime = 3; // Time between each change in brightness in miliseconds
+
+  int led1_modifier;
+  int led2_modifier;
+
+  if (led1->brightness > led1_set_brightness)
+    led1_modifier = -1;
+  else
+    led1_modifier = +1;
+  
+  if (led2->brightness > led2_set_brightness)
+    led2_modifier = -1;
+  else
+    led2_modifier = +1;
+  
+  while (led1->brightness != led1_set_brightness || led2->brightness != led2_set_brightness)
   {
-    int modifier;
-    if (*current_val < new_val)
-      modifier = 1;
-    else if (*current_val > new_val)
-      modifier = -1;
-    else
-      return SUCCESS; // new val is the same as the currently set value
-      
-    do 
-    {
-      *current_val += modifier;
-      analogWrite(pin, *current_val);
-      delay(STEP_TIME);
-    }while (*current_val != new_val);
-    return SUCCESS;
+    if (led1->brightness != led1_set_brightness)
+      led_set(led1, led1->brightness + led1_modifier);
+   
+    if (led2->brightness != led2_set_brightness)
+      led_set(led2, led2->brightness + led2_modifier);
+
+    delay(kStepTime);
   }
 }
 
-int set_profile(int profile_index)
+void led_set_off(Led *led1, Led *led2)
 {
-  int ret_status;
-  ret_status  = set_led(PIN_LED_WARM, &curr_led_warm_val, default_profiles[profile_index].led_warm_val);
-  ret_status |= set_led(PIN_LED_COOL, &curr_led_cool_val, default_profiles[profile_index].led_cool_val);
-  curr_profile_index = profile_index;
-  return ret_status;
+  led_set(led1, 0);
+  led_set(led2, 0);
 }
 
-void rotate_profile()
+void rotate_profile(Led_controller *controller)
 {
-  set_profile((curr_profile_index + 1) % NUM_PROFILES);
+  // Default profiles
+  const static uint8_t default_profiles[][2] = 
+  {
+    {255, 0}, // { warm_led_val, cool_led_val }
+    {255, 50},
+    {100, 25},
+    {50, 10}
+  };
+  const static int num_profiles = sizeof (default_profiles) / sizeof (default_profiles[0]);
+  
+  int prof_index = (controller->active_profile_index + 1) % num_profiles;
+
+  led_set((controller->led1), (controller->led2), 
+    default_profiles[prof_index][0], default_profiles[prof_index][1]);
+  
+  controller->active_profile_index = prof_index;
+}
+
+void led_controller_init(Led_controller *controller, Led *led1, Led *led2)
+{
+  controller->active_profile_index = 0;
+  controller->led1 = led1;
+  controller->led2 = led2;
 }
