@@ -27,38 +27,32 @@ typedef struct
 typedef struct 
 {
   uint8_t active_profile_index;
-  Led *led1;
-  Led *led2;
-}Led_controller;
+  Led led_warm;
+  Led led_cool;
+}LedController;
 
-Led led_warm;
-Led led_cool;
 Button btn_rotate_prof;
 Button btn_power;
-Led_controller controller;
+LedController controller;
 
 void setup()
 { 
   const int kPwmFrequency = 25000;
   analogWriteFrequency(kPwmFrequency);
   
-  const uint8_t kPinLedWarm = 5;
-  const uint8_t kPinLedCool = 6;
+  const uint8_t kPinLedWarm       = 5;
+  const uint8_t kPinLedCool       = 6;
   const uint8_t kPinBtnRotateProf = 7;
   const uint8_t kPinBtnPower      = 4;
-  led_init(&led_warm, kPinLedWarm);
-  led_init(&led_cool, kPinLedCool);
   button_init(&btn_rotate_prof, kPinBtnRotateProf);
   button_init(&btn_power, kPinBtnPower);
-  led_controller_init(&controller, &led_warm, &led_cool);
+  led_controller_init(&controller, kPinLedWarm, kPinLedCool);
 }
 
 void loop() 
 {
-  static int current_profile_index = 0;
-  
   if (button_pressed(&btn_power))
-    led_set_off(&led_warm, &led_cool);
+    led_set_off(&controller);
     
   if (button_pressed(&btn_rotate_prof))
     rotate_profile(&controller);
@@ -76,6 +70,8 @@ bool button_pressed(Button *btn)
 {
   uint8_t curr_button_status = digitalRead(btn->pin);
   bool ret;
+
+  // Return true on a RISING edge
   if (curr_button_status && !btn->last_button_status)
     ret = true;
   else
@@ -83,7 +79,6 @@ bool button_pressed(Button *btn)
   btn->last_button_status = curr_button_status;
   return ret;
 }
-
 
 void led_init(Led*new_led, uint8_t led_pin)
 {
@@ -129,35 +124,34 @@ void led_set(Led *led1, Led *led2, uint8_t led1_set_brightness, uint8_t led2_set
   }
 }
 
-void led_set_off(Led *led1, Led *led2)
+void led_set_off(LedController *controller)
 {
-  led_set(led1, 0);
-  led_set(led2, 0);
+  uint8_t kOffBrightness = 0;
+  led_set(&(controller->led_warm), &(controller->led_cool), kOffBrightness, kOffBrightness);
+  controller->active_profile_index = 0;
 }
 
-void rotate_profile(Led_controller *controller)
+void rotate_profile(LedController *controller)
 {
   // Default profiles
   const static uint8_t default_profiles[][2] = 
   {
-    {255, 0}, // { warm_led_val, cool_led_val }
-    {255, 50},
-    {100, 25},
-    {50, 10}
+    {50, 10},  // { warm_led_val, cool_led_val }
+    {255, 75}  // Second profile is set first on startup
   };
   const static int num_profiles = sizeof (default_profiles) / sizeof (default_profiles[0]);
   
   int prof_index = (controller->active_profile_index + 1) % num_profiles;
 
-  led_set((controller->led1), (controller->led2), 
+  led_set(&(controller->led_warm), &(controller->led_cool), 
     default_profiles[prof_index][0], default_profiles[prof_index][1]);
   
   controller->active_profile_index = prof_index;
 }
 
-void led_controller_init(Led_controller *controller, Led *led1, Led *led2)
+void led_controller_init(LedController *controller, uint8_t pin_led_warm, uint8_t pin_led_cool)
 {
   controller->active_profile_index = 0;
-  controller->led1 = led1;
-  controller->led2 = led2;
+  led_init(&(controller->led_warm), pin_led_warm);
+  led_init(&(controller->led_cool), pin_led_cool);
 }
